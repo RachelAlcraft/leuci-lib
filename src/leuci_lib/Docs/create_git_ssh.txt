@@ -3,7 +3,8 @@
 
 cd ~
 mkdir .ssh
-cd .sshssh-keygen
+cd .ssh
+ssh-keygen
 (press enter 3 times without typing anythong)
 cat id_rsa.pub
 (copy the contents)

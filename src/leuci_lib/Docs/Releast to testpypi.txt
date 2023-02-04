@@ -4,8 +4,8 @@ https://packaging.python.org/tutorials/packaging-projects/
 1) In the directory /home/rachel/Documents/Bioinformatics/leuci-lib/ open a command prompt
  (or from WSL and VSCODE on the command prompt there)
 2) Increment the version in setup.cfg in the project
-3) cmd: python3 -m build
-4) cmd: python3 -m twine upload --repository testpypi dist/*
+3) cmd: python -m build
+4) cmd: python -m twine upload --repository testpypi dist/*
 user name promt RachelAlcraft
 password prompt 10MoreMinutes
 
@@ -23,7 +23,7 @@ https://colab.research.google.com/drive/1Ut5HXQQgE3sNuAMo7IVR3aqwUVOYDy12
 ##################################################
 Release to pypi
 ##############################################################
-4) cmd: python3 -m twine upload --repository pypi dist/*
+4) cmd: python -m twine upload --repository pypi dist/*
 
 
 
