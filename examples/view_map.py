@@ -7,26 +7,31 @@ It will automatically check what kind of electron ddensity is available - xray o
 
 ########## INPUTS #################
 
-pdb_code = "4rek"
+pdb_code = "6eex"
 
 
 ########## INPUTS #################
 
 
 import leuci_lib.pdbobject as pob
+from pathlib import Path
+DIR = str(Path(__file__).resolve().parent )+ "/data/"
+print(DIR)
 
 def show_pdb_map(pdb_code):
     print("Showing pdb map details")
-    po = pob.PdbObject(pdb_code)
+    po = pob.PdbObject(pdb_code, location=DIR, delete=False)
     print(po.pdb_code)
     print(po.pdb_link)
     print(po.ebi_link)
     #print(po.map_code)
     print(po.resolution)
+    print(po.exp_method)
     #print(po.map_source)
     #print(po.map_link)
     #print(po.map_header)
     print(po.valid)
+    print(po.getHeaders())
     print("~")
     
 
