@@ -1,6 +1,12 @@
 
 https://packaging.python.org/tutorials/packaging-projects/
 
+Installs needed
+```
+python -m pip install --upgrade build
+pip install twine
+```
+
 1) In the directory /home/rachel/Documents/Bioinformatics/leuci-lib/ open a command prompt
  (or from WSL and VSCODE on the command prompt there)
 2) Increment the version in setup.cfg in the project
