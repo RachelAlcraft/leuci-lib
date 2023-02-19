@@ -10,6 +10,7 @@ import urllib.request
 from Bio.PDB.MMCIFParser import MMCIFParser        
 from Bio.PDB.MMCIF2Dict import MMCIF2Dict
 from Bio.PDB.PDBParser import PDBParser
+import struct
 
 import warnings
 from Bio import BiopythonWarning
@@ -25,10 +26,15 @@ class PdbObject(object):
         self.resolution = ""
         self.exp_method = ""
         self.map_header = {}
+        self.header_as_string = ""
         # Private data
         self._ccp4_binary = None
         self._diff_binary = None        
-        self.loaded = False        
+        self.pdb_loaded = False        
+        self.em_loaded = False       
+        self.values_loaded = False    
+        self.values = []   
+        self.diff_values = []
         # PRIVATE INTERFACE
         self._directory = directory
         self._delete = delete
@@ -62,18 +68,18 @@ class PdbObject(object):
         self.load_pdb()
         if 'x-ray' in self.exp_method:
             if exists(self._filepath_ccp4) and exists(self._filepath_diff):                
-                self.loaded = True
+                self.em_loaded = True
                 return True        
             else:
                 return False
         elif 'electron' in self.exp_method.lower():
             if exists(self._filepath_ccp4):
-                self.loaded = True
+                self.em_loaded = True
                 return True
             else:
                 return False
         else:
-            self.loaded = True
+            self.em_loaded = True
             return True # it doesn;t NOT exists anyway
     
     def download(self):
@@ -86,18 +92,21 @@ class PdbObject(object):
         self._fetch_pdbdata()
 
     def download_map(self):
-        if not self.loaded:
+        if not self.pdb_loaded:
             self.load_pdb()            
         if 'x-ray' in self.exp_method:
             self._fetch_maplink_xray()            
-        elif 'electron' in self.exp_method:
-            self._fetch_maplink_em()
-        self.loaded = True
+        #elif 'electron' in self.exp_method:
+        #    self._fetch_maplink_em()
+        self.em_loaded = True
     
     def load(self):
-        self.load_pdb()
+        self.pdb_loaded = self.load_pdb()
         if 'x-ray' in self.exp_method:            
             self.load_map()
+            
+            
+        
 
     def load_pdb(self):
         if self._cif:
@@ -107,6 +116,7 @@ class PdbObject(object):
         self._struc_dict = MMCIF2Dict(self._filepath)
         self.resolution = structure.header["resolution"]
         self.exp_method = structure.header["structure_method"]            
+        return True
 
     def load_map(self):
         try:
@@ -114,10 +124,18 @@ class PdbObject(object):
                 self._ccp4_binary = file.read()        
             with open(self._filepath_diff, mode='rb') as file:
                 self._diff_binary = file.read()
-            self._create_mapheader()
-            self.loaded = True
+            self._create_mapheader()            
+            self.em_loaded = True
         except:        
-            self.loaded = False
+            self.em_loaded = False
+    
+    def load_values(self):
+        try:                        
+            self._create_mapvalues()
+            self.values_loaded = True
+        except:        
+            self.values_loaded = False
+
 
     #################################################
     ############ PRIVATE INTERFACE ##################
@@ -156,7 +174,11 @@ class PdbObject(object):
         
 
     def _create_mapheader(self):
+        num_labels = 0
+        num_sym = 0
         headers = [] #https://www.ccp4.ac.uk/html/maplib.html#description
+        xheaders = [] 
+        self.header_as_string = ""
         headers.append(["01_NC","int",4])           # of Columns    (fastest changing in map)
         headers.append(["02_NR","int",4])           # of Rows
         headers.append(["03_NS","int",4])           # of Sections   (slowest changing in map)
@@ -182,14 +204,84 @@ class PdbObject(object):
         headers.append(["23_ISPG","int",4])         # Space group number
         headers.append(["24_NSYMBT","int",4])       # Number of bytes used for storing symmetry operators
         headers.append(["25_LSKFLG","int",4])       # Flag for skew transformation, =0 none, =1 if foll
-                        
+        for i in range(26,35):
+            headers.append([str(i) + "_SKWMAT","double",4])       # Flag for skew transformation, =0 none, =1 if foll
+        for i in range(35,38):
+            headers.append([str(i) + "_SKWTRN","double",4])       # Flag for skew transformation, =0 none, =1 if foll
+        for i in range(38,53):
+            headers.append(["X","int",4])       # Flag for skew transformation, =0 none, =1 if foll
+        headers.append(["53_MAP","string",4])       # Character string 'MAP ' to identify file type
+        headers.append(["54_MACHST","int",4])       # Machine stamp indicating the machine type
+        headers.append(["55_ARMS","double",4])       # Rms deviation of map from mean density
+        headers.append(["56_NLABL","int",4])       # Number of labels being used
+                
         i=0
         for header, typ,inc  in headers:
-            if typ == "int":
-                self.map_header[header] = int.from_bytes(self._ccp4_binary[i:i+4], byteorder='little', signed=False)
+            val = ""
+            if not header == "X":
+                if typ == "int":
+                    val = int.from_bytes(self._ccp4_binary[i:i+inc], byteorder='little', signed=True)
+                    self.map_header[header] = val
+                elif typ == "double":
+                    val = struct.unpack('f', self._ccp4_binary[i:i+inc])[0]
+                    self.map_header[header] = val
+                elif typ == "string":
+                    val = self._ccp4_binary[i:i+inc].decode("utf-8") 
+                    self.map_header[header] = val
+                    
+                if len(header) > 7:
+                    self.header_as_string += header + "\t" + str(val) + "\n"
+                else:
+                    self.header_as_string += header + "\t\t" + str(val) + "\n"
+                
+                if header == "24_NSYMBT":
+                    num_sym = int(val/80)                              
+                if header == "56_NLABL":
+                    num_labels = int(val)
+                                                                
+            i+=inc
+                
+        for s in range(0,num_labels):
+            xheaders.append([str(s+1) + "_LABEL","string",80])       # 10  80 character text labels (ie. A4 format)
+        for s in range(num_labels,10):
+            xheaders.append(["X","string",80])       # 10  80 character text labels (ie. A4 format)            
+        for s in range(0,num_sym):
+            xheaders.append([str(s+1) + "_SYM","string",80])       # 10  80 character text labels (ie. A4 format)                        
+            
+        
+        for header, typ,inc  in xheaders:
+            if not header == "X":
+                if typ == "int":
+                    val = int.from_bytes(self._ccp4_binary[i:i+inc], byteorder='little', signed=True)
+                    self.map_header[header] = val
+                elif typ == "double":
+                    val = struct.unpack('f', self._ccp4_binary[i:i+inc])[0]
+                    self.map_header[header] = val
+                elif typ == "string":
+                    val = self._ccp4_binary[i:i+inc].decode("utf-8") 
+                    self.map_header[header] = val
+                    
+                if len(header) > 7:
+                    self.header_as_string += header + "\t" + str(val) + "\n"
+                else:
+                    self.header_as_string += header + "\t\t" + str(val) + "\n"
             i+=inc
         
                         
+    def _create_mapvalues(self, diff=False):
+        use_binary = self._ccp4_binary
+        if diff:
+            use_binary = self._diff_binary
+        Blength = self.map_header["01_NC"] * self.map_header["02_NR"] * self.map_header["03_NS"]
+        Bstart = len(self._ccp4_binary) - (4 * Blength)
+        self.values = []
+        for i in range(0,Blength):
+            strt = Bstart+(i*4)
+            val = struct.unpack('f', use_binary[strt:strt+4])[0]
+            self.values.append(val)
+
+
+
     def _create_mapdata_em(self):
         ccp4_link = ""
         em_link = ""
