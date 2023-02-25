@@ -8,9 +8,10 @@ It will automatically check what kind of electron ddensity is available - xray o
 ########## INPUTS #################
 #pdb_code = "6kj3"
 #pdb_code = "3j9e" #em
-#pdb_code = "1ejg"
+pdb_code = "1ejg"
 #pdb_code = "6eex"
-pdb_code = "3nir"
+#pdb_code = "3nir"
+#pdb_code = "4rek"
 
 
 ########## INPUTS #################
@@ -20,33 +21,40 @@ CODEDIR = str(Path(__file__).resolve().parent.parent )+ "/src/"
 import sys
 sys.path.append(CODEDIR)
 
-import leuci_lib.pdbobject as pob
+import leuci_lib.mapobject as mobj
+import leuci_lib.maploader as moad
 
 
 def show_pdb_map(pdb_code):
-    print("Showing pdb map details")
-    po = pob.PdbObject(pdb_code, directory=DATADIR, delete=False, cif=False)
+    print("Showing pdb map details", pdb_code)
+    po = moad.MapLoader(pdb_code, directory=DATADIR, cif=False)
     if not po.exists():
         po.download()
     po.load()
     if po.em_loaded:
-        print(po.pdb_code)
-        print(po.pdb_link)
-        print(po.ebi_link)
+        print(po.mobj.pdb_code)
+        print(po.mobj.pdb_link)
+        print(po.mobj.ebi_link)
         #print(po.map_code)
-        print(po.resolution)
-        print(po.exp_method)
+        print(po.mobj.resolution)
+        print(po.mobj.exp_method)
         #print(po.map_source)
         #print(po.map_link)
         #print(po.map_header)
         print(po.em_loaded)
-        print(po.map_header)
-        print(po.header_as_string)
+        print(po.mobj.map_header)
+        print(po.mobj.header_as_string)
         po.load_values()
         if po.values_loaded:
-            print(len(po.values),"=",po.map_header["01_NC"] * po.map_header["02_NR"] * po.map_header["03_NS"])
-            print(po.values[0])    
-            print(po.values[len(po.values)-1])
+            print("Values...")
+            print(len(po.mobj.values),"=",po.mobj.map_header["01_NC"] * po.mobj.map_header["02_NR"] * po.mobj.map_header["03_NS"])
+            print(po.mobj.values[0])    
+            print(po.mobj.values[len(po.mobj.values)-1])
+            po.load_values(diff=True)        
+            print("Diff Values...")
+            print(len(po.mobj.diff_values),"=",po.mobj.map_header["01_NC"] * po.mobj.map_header["02_NR"] * po.mobj.map_header["03_NS"])
+            print(po.mobj.diff_values[0])    
+            print(po.mobj.diff_values[len(po.mobj.diff_values)-1])
     #print(po._struc_dict["_pdbx_database_related.details"])
     print("~")
     

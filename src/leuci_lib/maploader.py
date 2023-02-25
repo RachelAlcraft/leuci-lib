@@ -16,41 +16,32 @@ import warnings
 from Bio import BiopythonWarning
 warnings.simplefilter('ignore', BiopythonWarning)
 
-class PdbObject(object):
-    def __init__(self, pdb_code, directory="", delete=False, cif=False):
+from . import mapobject as mobj
+
+class MapLoader(object):
+    def __init__(self, pdb_code, directory="", cif=False):
         # PUBLIC INTERFACE
-        self.pdb_code = pdb_code        
-        self.em_code = ""
-        self.ebi_link = f"https://www.ebi.ac.uk/pdbe/entry/pdb/{pdb_code}"                
-        self.em_link = ""
-        self.resolution = ""
-        self.exp_method = ""
-        self.map_header = {}
-        self.header_as_string = ""
+        self.mobj = mobj.MapObject(pdb_code)
+        
         # Private data
         self._ccp4_binary = None
         self._diff_binary = None        
         self.pdb_loaded = False        
         self.em_loaded = False       
-        self.values_loaded = False    
-        self.values = []   
-        self.diff_values = []
+        self.values_loaded = False            
         # PRIVATE INTERFACE
-        self._directory = directory
-        self._delete = delete
+        self._directory = directory        
         self._cif=cif
         if cif:
             self._filepath = f"{directory}{pdb_code}.cif"
-            self.pdb_link = f"https://www.ebi.ac.uk/pdbe/entry-files/download/{pdb_code}.cif"
+            self.mobj.pdb_link = f"https://www.ebi.ac.uk/pdbe/entry-files/download/{pdb_code}.cif"
         else:        
             self._filepath = f"{directory}{pdb_code}.pdb"
-            self.pdb_link = f"https://www.ebi.ac.uk/pdbe/entry-files/download/pdb{pdb_code}.ent"
+            self.mobj.pdb_link = f"https://www.ebi.ac.uk/pdbe/entry-files/download/pdb{pdb_code}.ent"
         
-        self._filepath_ccp4 = f"{self._directory}{self.pdb_code}.ccp4"
-        self._filepath_diff = f"{self._directory}{self.pdb_code}_diff.ccp4"
-        self.ccp4_link = f"https://www.ebi.ac.uk/pdbe/entry-files/{self.pdb_code}.ccp4"
-        self.diff_link = f"https://www.ebi.ac.uk/pdbe/entry-files/{self.pdb_code}_diff.ccp4"
-                                
+        self._filepath_ccp4 = f"{self._directory}{self.mobj.pdb_code}.ccp4"
+        self._filepath_diff = f"{self._directory}{self.mobj.pdb_code}_diff.ccp4"
+                                        
     def exists(self):
         if self.exists_pdb():
             if self.exists_map():
@@ -66,13 +57,13 @@ class PdbObject(object):
     
     def exists_map(self):
         self.load_pdb()
-        if 'x-ray' in self.exp_method:
+        if 'x-ray' in self.mobj.exp_method:
             if exists(self._filepath_ccp4) and exists(self._filepath_diff):                
                 self.em_loaded = True
                 return True        
             else:
                 return False
-        elif 'electron' in self.exp_method.lower():
+        elif 'electron' in self.mobj.exp_method.lower():
             if exists(self._filepath_ccp4):
                 self.em_loaded = True
                 return True
@@ -94,7 +85,7 @@ class PdbObject(object):
     def download_map(self):
         if not self.pdb_loaded:
             self.load_pdb()            
-        if 'x-ray' in self.exp_method:
+        if 'x-ray' in self.mobj.exp_method:
             self._fetch_maplink_xray()            
         #elif 'electron' in self.exp_method:
         #    self._fetch_maplink_em()
@@ -102,7 +93,7 @@ class PdbObject(object):
     
     def load(self):
         self.pdb_loaded = self.load_pdb()
-        if 'x-ray' in self.exp_method:            
+        if 'x-ray' in self.mobj.exp_method:            
             self.load_map()
             
             
@@ -110,12 +101,12 @@ class PdbObject(object):
 
     def load_pdb(self):
         if self._cif:
-            structure = MMCIFParser().get_structure(self.pdb_code, self._filepath)
+            structure = MMCIFParser().get_structure(self.mobj.pdb_code, self._filepath)
         else:
-            structure = PDBParser(PERMISSIVE=True).get_structure(self.pdb_code, self._filepath)
+            structure = PDBParser(PERMISSIVE=True).get_structure(self.mobj.pdb_code, self._filepath)
         self._struc_dict = MMCIF2Dict(self._filepath)
-        self.resolution = structure.header["resolution"]
-        self.exp_method = structure.header["structure_method"]            
+        self.mobj.resolution = structure.header["resolution"]
+        self.mobj.exp_method = structure.header["structure_method"]            
         return True
 
     def load_map(self):
@@ -129,9 +120,9 @@ class PdbObject(object):
         except:        
             self.em_loaded = False
     
-    def load_values(self):
+    def load_values(self, diff=False):
         try:                        
-            self._create_mapvalues()
+            self._create_mapvalues(diff)
             self.values_loaded = True
         except:        
             self.values_loaded = False
@@ -142,18 +133,18 @@ class PdbObject(object):
     #################################################
     def _fetch_pdbdata(self):
         try:
-            print(self.pdb_link, self._filepath)            
-            urllib.request.urlretrieve(self.pdb_link, self._filepath)                                
+            print(self.mobj.pdb_link, self._filepath)            
+            urllib.request.urlretrieve(self.mobj.pdb_link, self._filepath)                                
         except:            
             return False
         return True
         
     def _fetch_maplink_xray(self):                
         if not exists(self._filepath_ccp4):            
-            urllib.request.urlretrieve(self.ccp4_link, self._filepath_ccp4)
+            urllib.request.urlretrieve(self.mobj.ccp4_link, self._filepath_ccp4)
         if not exists(self._filepath_diff):            
-            urllib.request.urlretrieve(self.diff_link, self._filepath_diff)
-        self.em_code = self.pdb_code
+            urllib.request.urlretrieve(self.mobj.diff_link, self._filepath_diff)
+        self.mobj.em_code = self.mobj.pdb_code
 
                         
     def _fetch_maplink_em(self):     
@@ -163,14 +154,14 @@ class PdbObject(object):
         pdb file
         REMARK 900 RELATED ID: EMD-6240   RELATED DB: EMDB                              
         """
-        self.em_code = ""
+        self.mobj.em_code = ""
         with open(self._filepath,"r") as fr:
             lines = fr.read_lines()
             print(lines)
         
-        self.diff_link = "" # there is no difference density for cryo-em   
-        self.ccp4_link = "https://ftp.ebi.ac.uk/pub/databases/emdb/structures/EMD-" + self.em_code + "/map/emd_" + self.em_code + ".map.gz"        
-        self.em_link = f"https://www.ebi.ac.uk/emdb/EMD-{self.em_code}"
+        self.mobj.diff_link = "" # there is no difference density for cryo-em   
+        self.mobj.ccp4_link = "https://ftp.ebi.ac.uk/pub/databases/emdb/structures/EMD-" + self.em_code + "/map/emd_" + self.em_code + ".map.gz"        
+        self.mobj.em_link = f"https://www.ebi.ac.uk/emdb/EMD-{self.em_code}"
         
 
     def _create_mapheader(self):
@@ -178,7 +169,7 @@ class PdbObject(object):
         num_sym = 0
         headers = [] #https://www.ccp4.ac.uk/html/maplib.html#description
         xheaders = [] 
-        self.header_as_string = ""
+        self.mobj.header_as_string = ""
         headers.append(["01_NC","int",4])           # of Columns    (fastest changing in map)
         headers.append(["02_NR","int",4])           # of Rows
         headers.append(["03_NS","int",4])           # of Sections   (slowest changing in map)
@@ -221,18 +212,18 @@ class PdbObject(object):
             if not header == "X":
                 if typ == "int":
                     val = int.from_bytes(self._ccp4_binary[i:i+inc], byteorder='little', signed=True)
-                    self.map_header[header] = val
+                    self.mobj.map_header[header] = val
                 elif typ == "double":
                     val = struct.unpack('f', self._ccp4_binary[i:i+inc])[0]
-                    self.map_header[header] = val
+                    self.mobj.map_header[header] = val
                 elif typ == "string":
                     val = self._ccp4_binary[i:i+inc].decode("utf-8") 
-                    self.map_header[header] = val
+                    self.mobj.map_header[header] = val
                     
                 if len(header) > 7:
-                    self.header_as_string += header + "\t" + str(val) + "\n"
+                    self.mobj.header_as_string += header + "\t" + str(val) + "\n"
                 else:
-                    self.header_as_string += header + "\t\t" + str(val) + "\n"
+                    self.mobj.header_as_string += header + "\t\t" + str(val) + "\n"
                 
                 if header == "24_NSYMBT":
                     num_sym = int(val/80)                              
@@ -253,32 +244,40 @@ class PdbObject(object):
             if not header == "X":
                 if typ == "int":
                     val = int.from_bytes(self._ccp4_binary[i:i+inc], byteorder='little', signed=True)
-                    self.map_header[header] = val
+                    self.mobj.map_header[header] = val
                 elif typ == "double":
                     val = struct.unpack('f', self._ccp4_binary[i:i+inc])[0]
-                    self.map_header[header] = val
+                    self.mobj.map_header[header] = val
                 elif typ == "string":
                     val = self._ccp4_binary[i:i+inc].decode("utf-8") 
-                    self.map_header[header] = val
+                    self.mobj.map_header[header] = val
                     
                 if len(header) > 7:
-                    self.header_as_string += header + "\t" + str(val) + "\n"
+                    self.mobj.header_as_string += header + "\t" + str(val) + "\n"
                 else:
-                    self.header_as_string += header + "\t\t" + str(val) + "\n"
+                    self.mobj.header_as_string += header + "\t\t" + str(val) + "\n"
             i+=inc
         
                         
-    def _create_mapvalues(self, diff=False):
+    def _create_mapvalues(self, diff):
         use_binary = self._ccp4_binary
+        vals = []
+        #vals = {} #zeros alternative
         if diff:
             use_binary = self._diff_binary
-        Blength = self.map_header["01_NC"] * self.map_header["02_NR"] * self.map_header["03_NS"]
+        Blength = self.mobj.map_header["01_NC"] * self.mobj.map_header["02_NR"] * self.mobj.map_header["03_NS"]
         Bstart = len(self._ccp4_binary) - (4 * Blength)
-        self.values = []
+        
         for i in range(0,Blength):
             strt = Bstart+(i*4)
             val = struct.unpack('f', use_binary[strt:strt+4])[0]
-            self.values.append(val)
+            vals.append(val)
+            #if abs(val) > 0.001:                
+            #    vals[i] = val
+        if diff:
+            self.mobj.diff_values = vals
+        else:
+            self.mobj.values = vals
 
 
 
